@@ -32,6 +32,8 @@ int main(int argc, char **argv)
         exit(0);
     }
 
+    // get all of the server addresses from dfc.conf
+
     char line[300];
     char *ip1, *ip2, *ip3, *ip4;
     char port1[16], port2[16], port3[16], port4[16], *tempport;
@@ -76,10 +78,16 @@ int main(int argc, char **argv)
     strcpy(port4, tempport);
 
     //printf("%s:%s\n", ip4, port4);
+
+    // get the username/password from dfc.conf
+
     char tempuser[300];
     char temppass[300];
     fgets(tempuser, 300, conf); //username
     fgets(temppass, 300, conf); //password
+
+    // clean username/password input
+
     strtok(tempuser, ":");
     char *username = strtok(NULL, " \r\n");
     if (username[0] == ' ') //remove possible space
@@ -99,6 +107,9 @@ int main(int argc, char **argv)
     fclose(conf);
 
     int port = atoi(port1);
+
+    // Set up the connections for the servers, heavy code duplication here
+    // todo doesn't actually create the sockets here though, that happens inside of the commands, probably not ideal...
 
     struct sockaddr_in s1addr;
     memset(&s1addr, '\0', sizeof(s1addr)); //0 out the memory
@@ -127,6 +138,9 @@ int main(int argc, char **argv)
     s4addr.sin_port = htons((unsigned short)port);
     inet_aton(ip4, (struct in_addr *)&s4addr.sin_addr.s_addr); //server 4
 
+    // todo give server statuses before asking for user input
+
+    // Infinite Loop
     while (1)
     {
         char buf[150] = "";
@@ -179,7 +193,7 @@ int main(int argc, char **argv)
             fwrite(filename, 1, strlen(filename), stream1);
             fwrite("!", 1, 1, stream1);
             fwrite(contents, 1, checkpoint1, stream1);
-            contents += checkpoint1;
+            contents += checkpoint1; // todo pointer math?????? OH GOD
 
             fwrite("2!", 1, 2, stream2);
             fwrite(filename, 1, strlen(filename), stream2);
@@ -877,7 +891,6 @@ int main(int argc, char **argv)
             }
 
             //get 2 files from the servers
-            char *m1, *m12, *m2, *m22, *m3, *m32, *m4, *m42; //remember to free
             char *part1, *part12, *part2, *part22, *part3, *part32, *part4, *part42;
 
             char *message1;
@@ -888,7 +901,7 @@ int main(int argc, char **argv)
             {
                 FILE *stream1 = open_memstream(&message1, &m1size);
                 n = 0;
-                char * m1 = malloc(size1);
+                char * m1 = (char*)malloc(size1);
                 while (n < size1)
                 {
                     int m = recv(server1fd, m1, size1 - n, 0);
@@ -902,7 +915,7 @@ int main(int argc, char **argv)
                 fclose(stream1);
 
                 FILE *stream12 = open_memstream(&message12, &m12size);
-                char * m12 = malloc(size12);
+                char * m12 = (char*)malloc(size12);
                 n = 0;
                 while (n < size12)
                 {
@@ -931,7 +944,7 @@ int main(int argc, char **argv)
             if (!none2)
             {
                 FILE *stream2 = open_memstream(&message2, &m2size);
-                char * m2 = malloc(size2);
+                char * m2 = (char*)malloc(size2);
                 n = 0;
                 while (n < size2)
                 {
@@ -946,7 +959,7 @@ int main(int argc, char **argv)
                 fclose(stream2);
 
                 FILE *stream22 = open_memstream(&message22, &m22size);
-                char * m22 = malloc(size1);
+                char * m22 = (char*)malloc(size1);
                 n = 0;
                 while (n < size22)
                 {
@@ -975,7 +988,7 @@ int main(int argc, char **argv)
             if (!none3)
             {
                 FILE *stream3 = open_memstream(&message3, &m3size);
-                char * m3 = malloc(size1);
+                char * m3 = (char*)malloc(size1);
                 n = 0;
                 while (n < size3)
                 {
@@ -990,7 +1003,7 @@ int main(int argc, char **argv)
                 fclose(stream3);
 
                 FILE *stream32 = open_memstream(&message32, &m32size);
-                char * m32 = malloc(size1);
+                char * m32 = (char*)malloc(size1);
                 n = 0;
                 while (n < size32)
                 {
@@ -1019,7 +1032,7 @@ int main(int argc, char **argv)
             if (!none4)
             {
                 FILE *stream4 = open_memstream(&message4, &m4size);
-                char * m4 = malloc(size1);
+                char * m4 = (char*)malloc(size1);
                 n = 0;
                 while (n < size4)
                 {
@@ -1034,7 +1047,7 @@ int main(int argc, char **argv)
                 fclose(stream4);
 
                 FILE *stream42 = open_memstream(&message42, &m42size);
-                char * m42 = malloc(size1);
+                char * m42 = (char*)malloc(size1);
                 n = 0;
                 while (n < size42)
                 {
@@ -1554,6 +1567,7 @@ int main(int argc, char **argv)
     }
 }
 
+// this is disgusting... fix this.
 int getMod4(char *str)
 {
     int len = strlen(str);
@@ -1739,7 +1753,7 @@ char *parseLists(char *list1, char *list2, char *list3, char *list4, bool do1, b
 {
     int nextpos = 0;
     int arrsize = 8;
-    struct Map *map = malloc(arrsize * sizeof(struct Map));
+    struct Map *map = (Map*)malloc(arrsize * sizeof(struct Map));
     for (int i = 0; i < arrsize; ++i)
     {
         initMap(&map[i]);
@@ -1802,7 +1816,7 @@ char *parseLists(char *list1, char *list2, char *list3, char *list4, bool do1, b
             if (nextpos >= arrsize)
             {
                 arrsize *= 2;
-                struct Map *temp = malloc(arrsize * sizeof(struct Map));
+                struct Map *temp = (Map*)malloc(arrsize * sizeof(struct Map));
                 for (int j = 0; j < nextpos; ++j)
                 {
                     temp[j] = map[j];
@@ -1867,7 +1881,7 @@ char *parseLists(char *list1, char *list2, char *list3, char *list4, bool do1, b
                 if (nextpos >= arrsize)
                 {
                     arrsize *= 2;
-                    struct Map *temp = malloc(arrsize * sizeof(struct Map));
+                    struct Map *temp = (Map*)malloc(arrsize * sizeof(struct Map));
                     for (int j = 0; j < nextpos; ++j)
                     {
                         temp[j] = map[j];

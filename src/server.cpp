@@ -32,6 +32,7 @@ struct data
 
 int open_listenfd(int port); 
 void handleRecieved(int connfd);
+void receiveAndParseLogin(int connfd, char* buf, char *username, char *password);
 void *thread(void *vargp);
 size_t manageResponse(void *ptr, size_t size, size_t nmemb, struct data *userdata);
 bool checkUser(char *username, char *password);
@@ -54,7 +55,7 @@ int main(int argc, char **argv)
     printf("Server setup complete.\n");
     while (1)
     { //listen constantly and create threads to handle activities while listening
-        connfdp = malloc(sizeof(int));
+        connfdp = (int*)malloc(sizeof(int));
         *connfdp = accept(listenfd, (struct sockaddr *)&clientaddr, &clientlen);
         pthread_create(&tid, NULL, thread, connfdp);
     }
@@ -74,18 +75,10 @@ void *thread(void *vargp)
 //login, command and file sizes, file 1, file 2
 void handleRecieved(int connfd)
 {
-    size_t n;
     char buf[MAXBUF];
-    char buf2[MAXBUF];
-    n = recv(connfd, buf, MAXBUF, 0); //n = chars read//recieve username/password
-    if (n < 0)
-    {
-        perror("recv 1 went and done broke\n");
-    }
-    if (strlen(buf) == 0)
-        return;
-    char *username = strtok(buf, " ");
-    char *password = strtok(NULL, " \r\n");
+    char* username;
+    char* password;
+    receiveAndParseLogin(connfd, buf, username, password);
     char r = 'b';
     if (!checkUser(username, password))
     {
@@ -100,8 +93,10 @@ void handleRecieved(int connfd)
         if (errno != 17)
             perror("failed to make directory");
     }
-    //printf("1: %s\n", buf);
-    recv(connfd, buf2, MAXBUF, 0); //command and file sizes(if relevant) or filename (if relevant)
+
+
+    char buf2[MAXBUF];
+    size_t n = recv(connfd, buf2, MAXBUF, 0); //command and file sizes(if relevant) or filename (if relevant)
     if (n < 0)
     {
         perror("recv 2 went and done broke\n");
@@ -112,11 +107,14 @@ void handleRecieved(int connfd)
 
     if (!strcmp(cmd, "put"))
     {
+        // Get the sizes for the 2 file messages
         size_t size1, size2;
         size1 = atol(strtok(NULL, "!"));
         size2 = atol(strtok(NULL, "!"));
-        char *m1 = malloc(size1);
-        char *m2 = malloc(size1);
+        char *m1 = (char*)malloc(size1);
+        char *m2 = (char*)malloc(size1);
+
+        // write message one to a string
 
         char *message1;
         size_t m1size;
@@ -133,6 +131,9 @@ void handleRecieved(int connfd)
             }
         }
         fclose(stream);
+
+        // write message two to a string
+
         char *message2;
         size_t m2size;
         FILE *stream2 = open_memstream(&message2, &m2size);
@@ -149,6 +150,8 @@ void handleRecieved(int connfd)
         }
         fclose(stream2);
 
+        // construct the filename for file 1
+
         char *file1part = strtok(message1, "!");
         char *file1name = strtok(NULL, "!");
         char *f1contents = strtok(NULL, "");
@@ -161,6 +164,8 @@ void handleRecieved(int connfd)
         strcat(f1partname, ".");
         strcat(f1partname, file1part);
 
+        // write file 1
+
         FILE *file1;
         if ((file1 = fopen(f1partname, "w")) == NULL)
         {
@@ -168,6 +173,9 @@ void handleRecieved(int connfd)
         }
         fwrite(f1contents, 1, f1contentsize, file1);
         fclose(file1);
+
+        // construct the filename for file 2
+
         char *file2part = strtok(message2, "!");
         char *file2name = strtok(NULL, "!");
         char *f2contents = strtok(NULL, "");
@@ -181,6 +189,8 @@ void handleRecieved(int connfd)
         strcat(f2partname, file2name);
         strcat(f2partname, ".");
         strcat(f2partname, file2part);
+
+        // write file 2
 
         FILE *file2;
         if ((file2 = fopen(f2partname, "w")) == NULL)
@@ -196,6 +206,7 @@ void handleRecieved(int connfd)
     {
         char *filename = strtok(NULL, "!");
 
+        // Construct paths to all potential files
         char p1[300];
         char p2[300];
         char p3[300];
@@ -218,6 +229,8 @@ void handleRecieved(int connfd)
         strcat(p3, ".3");
         strcat(p4, ".4");
 
+
+        // Find file pointers and numbers - this is assuming that we find exactly 2 currently, which seems odd
         FILE *file1;
         FILE *file2;
         FILE *temp;
@@ -286,12 +299,16 @@ void handleRecieved(int connfd)
             g4 = true;
         }
 
+        // Check if no files were found on this server for the request
+
         if (!g1 && !g2 && !g3 && !g4)
         {
             send(connfd, "!", 1, 0);
             printf("No files found.");
             return;
         }
+
+        // Write filenumber!contents to buffer
 
         char buf[32];
 
@@ -322,6 +339,8 @@ void handleRecieved(int connfd)
         }
         fclose(stream);
 
+        // Write filenumber!contents to buffer again, other file - literally fully repeated code, gross
+
         char *buffer2 = NULL;
         size_t buffer2Size = 0;
         FILE *stream2 = open_memstream(&buffer2, &buffer2Size);
@@ -348,6 +367,8 @@ void handleRecieved(int connfd)
         }
         fclose(stream2);
 
+        // send the message sizes in a first message?
+
         fclose(file1);
         fclose(file2);
         char msg[50];
@@ -358,15 +379,17 @@ void handleRecieved(int connfd)
         strcpy(msg, s1);
         strcat(msg, "!");
         strcat(msg, s2);
-        send(connfd, msg, 50, 0);
+        send(connfd, msg, 50, 0); // todo shouldn't this have a size? is it not 0 terminated right now?
 
         send(connfd, buffer, bufferSize, 0);   //send file 1
         send(connfd, buffer2, buffer2Size, 0); //send file 2
 
         free(buffer);
+        free(buffer2); // we weren't freeing buffer 2 before? seems like something that would cause problems...
     }
     else if (!strcmp(cmd, "list"))
     {
+        // list each file back to the client
         char *list = NULL;
         size_t listsize = 0;
         FILE *output = open_memstream(&list, &listsize);
@@ -389,6 +412,20 @@ void handleRecieved(int connfd)
         //printf("%s\n", list);
         send(connfd, list, listsize, 0);
     }
+}
+
+
+void receiveAndParseLogin(int connfd, char* buf,  char *username, char *password)
+{
+    size_t n = recv(connfd, buf, MAXBUF, 0); //n = chars read//recieve username/password
+    if (n < 0)
+    {
+        perror("recv 1 went and done broke\n");
+    }
+    if (strlen(buf) == 0)
+        return;
+    username = strtok(buf, " ");
+    password = strtok(NULL, " \r\n");
 }
 
 /* 
