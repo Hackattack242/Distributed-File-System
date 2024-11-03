@@ -1,4 +1,4 @@
-#include <stdio.h>
+#include <cstdio>
 #include <stdlib.h>
 #include <string.h>     /* for fgets */
 #include <strings.h>    /* for bzero, bcopy */
@@ -17,6 +17,15 @@
 extern int errno;
 #define MAXBUF 500000 /* max I/O buffer size */
 
+struct Config
+{
+    char *username, *password;
+    char *ip1, *ip2, *ip3, *ip4;
+    int port1, port2, port3, port4;
+};
+
+void parse_connection_config_line(FILE* conf, char* ip , int port);
+Config parse_config(char* path);
 int getMod4(char *str);
 char *fileEncrypt(char *filename, char *hash, long *size);
 void getHash(char *pass, char *hash);
@@ -32,81 +41,9 @@ int main(int argc, char **argv)
         exit(0);
     }
 
-    // get all of the server addresses from dfc.conf
+    Config config = parse_config(argv[1]);
 
-    char line[300];
-    char *ip1, *ip2, *ip3, *ip4;
-    char port1[16], port2[16], port3[16], port4[16], *tempport;
-    FILE *conf = fopen(argv[1], "r");
 
-    fgets(line, 300, conf); //server 1
-
-    strtok(line, " ");
-    strtok(NULL, " ");
-    ip1 = strtok(NULL, ":");
-    tempport = strtok(NULL, " \r\n");
-    strcpy(port1, tempport);
-
-    //printf("%s:%s\n", ip1, port1);
-
-    fgets(line, 300, conf); //server 2
-
-    strtok(line, " ");
-    strtok(NULL, " ");
-    ip2 = strtok(NULL, ":");
-    tempport = strtok(NULL, " \r\n");
-    strcpy(port2, tempport);
-
-    //printf("%s:%s\n", ip2, port2);
-
-    fgets(line, 300, conf); //server 3
-
-    strtok(line, " ");
-    strtok(NULL, " ");
-    ip3 = strtok(NULL, ":");
-    tempport = strtok(NULL, " \r\n");
-    strcpy(port3, tempport);
-
-    //printf("%s:%s\n", ip3, port3);
-
-    fgets(line, 300, conf); //server 4
-
-    strtok(line, " ");
-    strtok(NULL, " ");
-    ip4 = strtok(NULL, ":");
-    tempport = strtok(NULL, " \r\n");
-    strcpy(port4, tempport);
-
-    //printf("%s:%s\n", ip4, port4);
-
-    // get the username/password from dfc.conf
-
-    char tempuser[300];
-    char temppass[300];
-    fgets(tempuser, 300, conf); //username
-    fgets(temppass, 300, conf); //password
-
-    // clean username/password input
-
-    strtok(tempuser, ":");
-    char *username = strtok(NULL, " \r\n");
-    if (username[0] == ' ') //remove possible space
-    {
-        username++;
-    }
-
-    strtok(temppass, ":");
-    char *password = strtok(NULL, " \r\n");
-    if (password[0] == ' ')
-    {
-        password++;
-    }
-    //printf("%s\n", username);
-    //printf("%s\n", password);
-
-    fclose(conf);
-
-    int port = atoi(port1);
 
     // Set up the connections for the servers, heavy code duplication here
     // todo doesn't actually create the sockets here though, that happens inside of the commands, probably not ideal...
@@ -114,29 +51,26 @@ int main(int argc, char **argv)
     struct sockaddr_in s1addr;
     memset(&s1addr, '\0', sizeof(s1addr)); //0 out the memory
     s1addr.sin_family = AF_INET;
-    s1addr.sin_port = htons((unsigned short)port);
-    inet_aton(ip1, (struct in_addr *)&s1addr.sin_addr.s_addr); //server 1
+    s1addr.sin_port = htons((unsigned short)config.port1);
+    inet_aton(config.ip1, (struct in_addr *)&s1addr.sin_addr.s_addr); //server 1
 
-    port = atoi(port2);
     struct sockaddr_in s2addr;
     memset(&s2addr, '\0', sizeof(s2addr)); //0 out the memory
     s2addr.sin_family = AF_INET;
-    s2addr.sin_port = htons((unsigned short)port);
-    inet_aton(ip2, (struct in_addr *)&s2addr.sin_addr.s_addr); //server 2
+    s2addr.sin_port = htons((unsigned short)config.port2);
+    inet_aton(config.ip2, (struct in_addr *)&s2addr.sin_addr.s_addr); //server 2
 
-    port = atoi(port3);
     struct sockaddr_in s3addr;
     memset(&s3addr, '\0', sizeof(s3addr)); //0 out the memory
     s3addr.sin_family = AF_INET;
-    s3addr.sin_port = htons((unsigned short)port);
-    inet_aton(ip3, (struct in_addr *)&s3addr.sin_addr.s_addr); //server 3
+    s3addr.sin_port = htons((unsigned short)config.port3);
+    inet_aton(config.ip3, (struct in_addr *)&s3addr.sin_addr.s_addr); //server 3
 
-    port = atoi(port4);
     struct sockaddr_in s4addr;
     memset(&s4addr, '\0', sizeof(s4addr)); //0 out the memory
     s4addr.sin_family = AF_INET;
-    s4addr.sin_port = htons((unsigned short)port);
-    inet_aton(ip4, (struct in_addr *)&s4addr.sin_addr.s_addr); //server 4
+    s4addr.sin_port = htons((unsigned short)config.port4);
+    inet_aton(config.ip4, (struct in_addr *)&s4addr.sin_addr.s_addr); //server 4
 
     // todo give server statuses before asking for user input
 
@@ -164,7 +98,7 @@ int main(int argc, char **argv)
             //get filename
             char *filename = strtok(NULL, " \r\n");
             char hash[32];
-            getHash(password, hash);
+            getHash(config.password, hash);
             long size = 0;
 
             //read in file and encrypt,break into pieces,
@@ -221,9 +155,9 @@ int main(int argc, char **argv)
             size_t loginsize;
             FILE *logins = open_memstream(&login, &loginsize);
 
-            fwrite(username, 1, strlen(username), logins);
+            fwrite(config.username, 1, strlen(config.username), logins);
             fwrite(" ", 1, 1, logins);
-            fwrite(password, 1, strlen(password), logins);
+            fwrite(config.password, 1, strlen(config.password), logins);
 
             fclose(logins);
 
@@ -634,9 +568,9 @@ int main(int argc, char **argv)
             size_t loginsize;
             FILE *logins = open_memstream(&login, &loginsize);
 
-            fwrite(username, 1, strlen(username), logins);
+            fwrite(config.username, 1, strlen(config.username), logins);
             fwrite(" ", 1, 1, logins);
-            fwrite(password, 1, strlen(password), logins);
+            fwrite(config.password, 1, strlen(config.password), logins);
 
             fclose(logins);
 
@@ -1283,7 +1217,7 @@ int main(int argc, char **argv)
             {
                 //piece file together and decrypt
                 char hash[32];
-                getHash(password, hash);
+                getHash(config.password, hash);
                 dechunkifyAndDecrypt(filename, hash, fp1, fp2, fp3, fp4, fp1s, fp2s, fp3s, fp4s);
                 printf("File was retrieved successfully: %s\n", filename);
             }
@@ -1391,9 +1325,9 @@ int main(int argc, char **argv)
             size_t loginsize;
             FILE *logins = open_memstream(&login, &loginsize);
 
-            fwrite(username, 1, strlen(username), logins);
+            fwrite(config.username, 1, strlen(config.username), logins);
             fwrite(" ", 1, 1, logins);
-            fwrite(password, 1, strlen(password), logins);
+            fwrite(config.password, 1, strlen(config.password), logins);
 
             fclose(logins);
 
@@ -1565,6 +1499,63 @@ int main(int argc, char **argv)
             //output results, incomplete if not 1111
         }
     }
+}
+
+
+void parse_connection_config_line(FILE* conf, char* ip , int port)
+{
+    char line[300];
+    fgets(line, 300, conf);
+
+    strtok(line, " ");
+    strtok(NULL, " ");
+    ip = strtok(NULL, ":");
+    char* tempport = strtok(NULL, " \r\n");
+    port = atoi(tempport);
+}
+
+Config parse_config(char* path)
+{
+    Config config;
+    // get all of the server addresses from dfc.conf
+
+    FILE *conf = fopen(path, "r");
+
+    parse_connection_config_line(conf, config.ip1, config.port1);
+    parse_connection_config_line(conf, config.ip2, config.port2);
+    parse_connection_config_line(conf, config.ip3, config.port3);
+    parse_connection_config_line(conf, config.ip4, config.port4);
+
+    // get the username/password from dfc.conf
+
+    char tempuser[300];
+    char temppass[300];
+    fgets(tempuser, 300, conf); //username
+    fgets(temppass, 300, conf); //password
+
+    // clean username/password input
+
+    strtok(tempuser, ":");
+    char *username = strtok(NULL, " \r\n");
+    if (username[0] == ' ') //remove possible space
+    {
+        username++; // todo isn't this a guaranteed memory leak?
+    }
+    config.username = username;
+
+    strtok(temppass, ":");
+    char *password = strtok(NULL, " \r\n");
+    if (password[0] == ' ')
+    {
+        password++;
+    }
+    config.password = username;
+    //printf("%s\n", username);
+    //printf("%s\n", password);
+
+    fclose(conf);
+
+    return config;
 }
 
 // this is disgusting... fix this.
