@@ -26,6 +26,7 @@ struct Config
 
 void parse_connection_config_line(FILE* conf, char* ip , int port);
 Config parse_config(char* path);
+sockaddr_in create_sockaddr_in(char* ip, int port);
 int getMod4(char *str);
 char *fileEncrypt(char *filename, char *hash, long *size);
 void getHash(char *pass, char *hash);
@@ -43,34 +44,13 @@ int main(int argc, char **argv)
 
     Config config = parse_config(argv[1]);
 
-
-
     // Set up the connections for the servers, heavy code duplication here
     // todo doesn't actually create the sockets here though, that happens inside of the commands, probably not ideal...
 
-    struct sockaddr_in s1addr;
-    memset(&s1addr, '\0', sizeof(s1addr)); //0 out the memory
-    s1addr.sin_family = AF_INET;
-    s1addr.sin_port = htons((unsigned short)config.port1);
-    inet_aton(config.ip1, (struct in_addr *)&s1addr.sin_addr.s_addr); //server 1
-
-    struct sockaddr_in s2addr;
-    memset(&s2addr, '\0', sizeof(s2addr)); //0 out the memory
-    s2addr.sin_family = AF_INET;
-    s2addr.sin_port = htons((unsigned short)config.port2);
-    inet_aton(config.ip2, (struct in_addr *)&s2addr.sin_addr.s_addr); //server 2
-
-    struct sockaddr_in s3addr;
-    memset(&s3addr, '\0', sizeof(s3addr)); //0 out the memory
-    s3addr.sin_family = AF_INET;
-    s3addr.sin_port = htons((unsigned short)config.port3);
-    inet_aton(config.ip3, (struct in_addr *)&s3addr.sin_addr.s_addr); //server 3
-
-    struct sockaddr_in s4addr;
-    memset(&s4addr, '\0', sizeof(s4addr)); //0 out the memory
-    s4addr.sin_family = AF_INET;
-    s4addr.sin_port = htons((unsigned short)config.port4);
-    inet_aton(config.ip4, (struct in_addr *)&s4addr.sin_addr.s_addr); //server 4
+    struct sockaddr_in s1addr = create_sockaddr_in(config.ip1, config.port1);
+    struct sockaddr_in s2addr = create_sockaddr_in(config.ip2, config.port2);
+    struct sockaddr_in s3addr = create_sockaddr_in(config.ip3, config.port3);
+    struct sockaddr_in s4addr = create_sockaddr_in(config.ip4, config.port4);
 
     // todo give server statuses before asking for user input
 
@@ -1501,6 +1481,16 @@ int main(int argc, char **argv)
     }
 }
 
+
+sockaddr_in create_sockaddr_in(char* ip, int port)
+{
+    struct sockaddr_in addr;
+    memset(&addr, '\0', sizeof(addr)); //0 out the memory
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons((unsigned short)port);
+    inet_aton(ip, (struct in_addr *)&addr.sin_addr.s_addr);
+    return addr;
+}
 
 void parse_connection_config_line(FILE* conf, char* ip , int port)
 {
